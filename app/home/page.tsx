@@ -1,6 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { useSession } from "next-auth/react"
+import { useRouter } from "next/navigation"
 import { MobileHeader } from "@/components/mobile-header"
 import { BottomNav } from "@/components/bottom-nav"
 import { Card } from "@/components/ui/card"
@@ -29,6 +31,15 @@ const initialTasks = [
 ]
 
 export default function HomePage() {
+  const { data: session, status } = useSession()
+  const router = useRouter()
+
+  useEffect(() => {
+    if (status === "unauthenticated") {
+      router.replace("/auth")
+    }
+  }, [status, router])
+
   const [tasks, setTasks] = useState(initialTasks)
   const [isAddTaskOpen, setIsAddTaskOpen] = useState(false)
   const [newTaskTitle, setNewTaskTitle] = useState("")
@@ -57,6 +68,11 @@ export default function HomePage() {
   }
 
   const completedCount = tasks.filter((t) => t.completed).length
+
+  // Optionally, show a loading state while checking session
+  if (status === "loading") {
+    return <div className="min-h-screen flex items-center justify-center">Loading...</div>
+  }
 
   return (
     <div className="min-h-screen pb-20">
