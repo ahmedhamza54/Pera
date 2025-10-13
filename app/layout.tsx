@@ -21,8 +21,8 @@ export const metadata: Metadata = {
     telephone: false,
   },
   icons: {
-    icon: "/icon-192.jpg",
-    apple: "/icon-192.jpg",
+    icon: "icons/icon-192.png",
+    apple: "icons/icon-192.png",
   },
 }
 

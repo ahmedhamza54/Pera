@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-
+import { requestNotificationPermission } from "@/lib/notifications"
 const pillars = [
   { name: "Health", color: "bg-chart-1" },
   { name: "Social", color: "bg-chart-2" },
@@ -38,6 +38,8 @@ export default function HomePage() {
     if (status === "unauthenticated") {
       router.replace("/auth")
     }
+      requestNotificationPermission();
+
   }, [status, router])
 
   const [tasks, setTasks] = useState(initialTasks)
