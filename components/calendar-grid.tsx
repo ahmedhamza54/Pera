@@ -5,46 +5,46 @@ import { cn } from "@/lib/utils"
 
 const daysOfWeek = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
 
-const calendarDays = [
-  { date: 1, hasEvents: false, isToday: false },
-  { date: 2, hasEvents: false, isToday: false },
-  { date: 3, hasEvents: false, isToday: false },
-  { date: 4, hasEvents: false, isToday: false },
-  { date: 5, hasEvents: true, isToday: true },
-  { date: 6, hasEvents: true, isToday: false },
-  { date: 7, hasEvents: true, isToday: false },
-  { date: 8, hasEvents: false, isToday: false },
-  { date: 9, hasEvents: false, isToday: false },
-  { date: 10, hasEvents: true, isToday: false },
-  { date: 11, hasEvents: false, isToday: false },
-  { date: 12, hasEvents: false, isToday: false },
-  { date: 13, hasEvents: false, isToday: false },
-  { date: 14, hasEvents: false, isToday: false },
-  { date: 15, hasEvents: false, isToday: false },
-  { date: 16, hasEvents: false, isToday: false },
-  { date: 17, hasEvents: false, isToday: false },
-  { date: 18, hasEvents: false, isToday: false },
-  { date: 19, hasEvents: false, isToday: false },
-  { date: 20, hasEvents: false, isToday: false },
-  { date: 21, hasEvents: false, isToday: false },
-  { date: 22, hasEvents: false, isToday: false },
-  { date: 23, hasEvents: false, isToday: false },
-  { date: 24, hasEvents: false, isToday: false },
-  { date: 25, hasEvents: false, isToday: false },
-  { date: 26, hasEvents: false, isToday: false },
-  { date: 27, hasEvents: false, isToday: false },
-  { date: 28, hasEvents: false, isToday: false },
-  { date: 29, hasEvents: false, isToday: false },
-  { date: 30, hasEvents: false, isToday: false },
-  { date: 31, hasEvents: false, isToday: false },
-]
-
 interface CalendarGridProps {
   selectedDay: number
   onSelectDay: (day: number) => void
+  currentMonth: number
+  currentYear: number
+  plan: any
 }
 
-export function CalendarGrid({ selectedDay, onSelectDay }: CalendarGridProps) {
+export function CalendarGrid({ 
+  selectedDay, 
+  onSelectDay, 
+  currentMonth, 
+  currentYear,
+  plan 
+}: CalendarGridProps) {
+  // Get the number of days in the current month
+  const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate()
+  
+  // Get the day of week the month starts on (0 = Sunday, 6 = Saturday)
+  const firstDayOfMonth = new Date(currentYear, currentMonth, 1).getDay()
+  
+  // Get today's date for comparison
+  const today = new Date()
+  const isCurrentMonth = currentMonth === today.getMonth() && currentYear === today.getFullYear()
+  const todayDate = today.getDate()
+
+  // Helper to check if a day has tasks
+  const hasTasksOnDay = (day: number) => {
+    if (!plan) return false
+    const dateString = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+    return plan.tasks.some((task: any) => task.startDate === dateString)
+  }
+
+  // Generate array of days
+  const calendarDays = Array.from({ length: daysInMonth }, (_, i) => ({
+    date: i + 1,
+    hasEvents: hasTasksOnDay(i + 1),
+    isToday: isCurrentMonth && (i + 1) === todayDate
+  }))
+
   return (
     <Card className="p-4">
       {/* Days of week header */}
@@ -58,8 +58,8 @@ export function CalendarGrid({ selectedDay, onSelectDay }: CalendarGridProps) {
 
       {/* Calendar days */}
       <div className="grid grid-cols-7 gap-2">
-        {/* Empty cells for days before month starts (assuming month starts on Friday) */}
-        {[...Array(5)].map((_, i) => (
+        {/* Empty cells for days before month starts */}
+        {[...Array(firstDayOfMonth)].map((_, i) => (
           <div key={`empty-${i}`} />
         ))}
 
@@ -70,12 +70,19 @@ export function CalendarGrid({ selectedDay, onSelectDay }: CalendarGridProps) {
             className={cn(
               "aspect-square flex flex-col items-center justify-center rounded-lg text-sm transition-colors relative",
               selectedDay === day.date
-                ? "bg-accent text-accent-foreground font-semibold"
+                ? "bg-primary text-primary-foreground font-semibold"
+                : day.isToday
+                ? "bg-accent text-accent-foreground font-semibold ring-2 ring-primary"
                 : "hover:bg-secondary text-foreground",
             )}
           >
             <span>{day.date}</span>
-            {day.hasEvents && <div className="absolute bottom-1 w-1 h-1 rounded-full bg-chart-1" />}
+            {day.hasEvents && (
+              <div className={cn(
+                "absolute bottom-1 w-1 h-1 rounded-full",
+                selectedDay === day.date ? "bg-primary-foreground" : "bg-primary"
+              )} />
+            )}
           </button>
         ))}
       </div>

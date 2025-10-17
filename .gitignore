@@ -26,3 +26,25 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Bubblewrap / Android build artifacts
+app/build/
+app/.gradle/
+android/.gradle/
+gradle/
+.gradle/
+local.properties
+*.apk
+*.aab
+
+# Node + Next.js stuff
+node_modules/
+.next/
+out/
+dist/
+
+# OS / editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

@@ -1,12 +1,12 @@
-export async function requestNotificationPermission() {
-  if (!("Notification" in window)) return false;
-
-  const permission = await Notification.requestPermission();
-  return permission === "granted";
+// Placeholder for notification functions
+export function showNotification(message: string, type: 'success' | 'error' | 'info') {
+  console.log(`Notification (${type}): ${message}`);
+  // In a real application, you would integrate a notification library here
+  // For example, using react-toastify or similar.
 }
 
-export function showLocalNotification(title: string, body: string) {
-  if (Notification.permission === "granted") {
-    new Notification(title, { body });
-  }
+export function requestNotificationPermission() {
+  console.log("Requesting notification permission...");
+  // In a real application, you would request notification permission here
+  // For example, using the Notification API.
 }
