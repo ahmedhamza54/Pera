@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { MobileHeader } from "@/components/mobile-header"
 import { BottomNav } from "@/components/bottom-nav"
 import { Card } from "@/components/ui/card"
@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Checkbox } from "@/components/ui/checkbox"
 
 const pillars = [
   { name: "Health", color: "bg-chart-1" },
@@ -34,6 +35,15 @@ export default function HomePage() {
   const [newTaskTitle, setNewTaskTitle] = useState("")
   const [newTaskPillar, setNewTaskPillar] = useState("")
   const [newTaskTime, setNewTaskTime] = useState("")
+
+  useEffect(() => {
+    // Request notification permission
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      if (Notification.permission === 'default') {
+        Notification.requestPermission()
+      }
+    }
+  }, [])
 
   const toggleTask = (id: number) => {
     setTasks((prev) => prev.map((task) => (task.id === id ? { ...task, completed: !task.completed } : task)))
@@ -100,7 +110,7 @@ export default function HomePage() {
             return (
               <Card key={task.id} className={`p-4 transition-opacity ${task.completed ? "opacity-50" : ""}`}>
                 <div className="flex items-start gap-3">
-                  <div className={`w-1 h-full rounded-full ${pillar?.color}`} />
+                  <div className={`w-1 h-full rounded-full ${pillar?.color} min-h-[60px]`} />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       <Badge variant="secondary" className="text-xs">
@@ -112,11 +122,11 @@ export default function HomePage() {
                       {task.title}
                     </p>
                   </div>
-                  <input
-                    type="checkbox"
+                  <Checkbox
+                    id={`task-${task.id}`}
                     checked={task.completed}
-                    onChange={() => toggleTask(task.id)}
-                    className="mt-1 h-5 w-5 rounded border-border cursor-pointer"
+                    onCheckedChange={() => toggleTask(task.id)}
+                    className="mt-1"
                   />
                 </div>
               </Card>
