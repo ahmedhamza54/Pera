@@ -41,6 +41,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`font-sans ${GeistSans.variable} ${GeistMono.variable} antialiased`}>
+        <meta name="theme-color" content="#000000" />
         <SessionProvider>
           <Suspense fallback={null}>{children}</Suspense>
         </SessionProvider>
