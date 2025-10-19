@@ -19,38 +19,38 @@ import dotenv from 'dotenv';
 dotenv.config({ path: '.env.local' });
 
 const myTool = llm.tool({
-
-
-    description: `Use this tool to push a diagnostic message to the user.
-          The message should describe the potential issue the user is facing based on their input.
-          Only use this tool when you detect a problem mentioned by the user.`,
+    description: `Use this tool to send the results of a diagnostic session to the user.
+          The tool should only be called after the assistant has gathered the user's problem, objective, and motivation.
+          `,
     parameters: {
         type: 'object',
         properties: {
-            problem_description: {
+            problem: {
                 type: 'string',
-                description: 'A brief description of the problem the user is facing.'
+                description: 'The main issue or challenge the user is facing.'
+            },
+            objectif: {
+                type: 'string',
+                description: 'The goal the user wants to achieve.'
+            },
+            motivation: {
+                type: 'string',
+                description: 'The reason or incentive driving the user to reach this goal.'
             }
         },
-        required: ['problem_description']
+        required: ['problem', 'objectif', 'motivation']
     },
-
-    execute: async ({ problem_description }, ctx) => {
-
+    execute: async ({ problem, objectif, motivation }, ctx) => {
         try {
-            const room = getJobContext().room;
-            const participant = Array.from(room.remoteParticipants.values())[0]!;
-            const response = await room.localParticipant!.publishData(
-                new TextEncoder().encode(problem_description),
-                { reliable: false }
-            );
-
-
-
-
-            return response;
+            const room = getJobContext().room
+            const response = JSON.stringify({ objectif, problem, motivation })
+            await room.localParticipant!.publishData(
+                new NodeTextEncoder().encode(response),
+                { reliable: true }
+            )
+            return { status: 'sent' }
         } catch (error) {
-            throw new llm.ToolError("Unable to retrieve user location");
+            throw new llm.ToolError("Failed to push diagnostic results")
         }
     }
 });
@@ -59,18 +59,20 @@ const myTool = llm.tool({
 class Assistant extends voice.Agent {
 
 
-    constructor() {
+constructor() {
         super({
-            instructions: `You are a helpful voice AI assistant. The user is interacting with you via voice.
-      You detect problems the user mentions and push diagnostics to the data channel when needed.
-      Responses should be concise and friendly.`,
-            tools: {
-                myTool
-            }
-        });
+            instructions: `You are a friendly voice assistant. 
+            Your task is to help the user identify their problem, objective, and motivation. 
+            Ask the user one by one: first their main problem, then their objective, then their motivation. 
+            Don't tal too much.
+            After collecting all three pieces of information, call the diagnostic tool to push the structured results. 
+            Do not format text, speak only in plain voice-friendly sentences.
+            Always respond in plain sentences suitable for voice.
+            you read only letters and numbers.`,
+            tools: { myTool }
+        })
     }
 
-    // This function mimics the Python 'diagnostic_tracker'
 
 }
 
