@@ -41,7 +41,7 @@ local.properties
 node_modules/
 .next/
 out/
-dist/
+
 
 # OS / editor files
 .DS_Store
