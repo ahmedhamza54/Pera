@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { requestNotificationPermission } from "@/lib/notifications"
+import { generateId } from '@/lib/id'
 import { Checkbox } from "@/components/ui/checkbox"
 
 const pillars = [
@@ -25,11 +26,11 @@ const pillars = [
 ]
 
 const initialTasks = [
-  { id: 1, title: "Morning workout", pillar: "Health", time: "7:00 AM", completed: false },
-  { id: 2, title: "Team standup meeting", pillar: "Career", time: "9:30 AM", completed: false },
-  { id: 3, title: "Read 30 pages", pillar: "Mind", time: "2:00 PM", completed: false },
-  { id: 4, title: "Call mom", pillar: "Social", time: "6:00 PM", completed: false },
-  { id: 5, title: "Evening prayer", pillar: "Din", time: "8:00 PM", completed: false },
+  { id: generateId(), title: "Morning workout", pillar: "Health", time: "7:00 AM", completed: false },
+  { id: generateId(), title: "Team standup meeting", pillar: "Career", time: "9:30 AM", completed: false },
+  { id: generateId(), title: "Read 30 pages", pillar: "Mind", time: "2:00 PM", completed: false },
+  { id: generateId(), title: "Call mom", pillar: "Social", time: "6:00 PM", completed: false },
+  { id: generateId(), title: "Evening prayer", pillar: "Din", time: "8:00 PM", completed: false },
 ]
 
 export default function HomePage() {
@@ -59,14 +60,14 @@ export default function HomePage() {
     }
   }, [])
 
-  const toggleTask = (id: number) => {
+  const toggleTask = (id: string) => {
     setTasks((prev) => prev.map((task) => (task.id === id ? { ...task, completed: !task.completed } : task)))
   }
 
   const handleAddTask = () => {
     if (newTaskTitle && newTaskPillar && newTaskTime) {
       const newTask = {
-        id: tasks.length + 1,
+        id: generateId(),
         title: newTaskTitle,
         pillar: newTaskPillar,
         time: newTaskTime,
@@ -141,12 +142,12 @@ export default function HomePage() {
                       {task.title}
                     </p>
                   </div>
-                  <Checkbox
-                    id={`task-${task.id}`}
-                    checked={task.completed}
-                    onCheckedChange={() => toggleTask(task.id)}
-                    className="mt-1"
-                  />
+                                  <Checkbox
+                                    id={`task-${task.id}`}
+                                    checked={task.completed}
+                                    onCheckedChange={() => toggleTask(task.id)}
+                                    className="mt-1"
+                                  />
                 </div>
               </Card>
             )

@@ -1,22 +1,52 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useRef, useEffect } from "react"
+import { useRouter } from "next/navigation"
+import { usePlan } from "@/contexts/plan-context"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Send, Sparkles, Mic } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 
+import { generateId } from '@/lib/id'
+
 interface Message {
-  id: number
+  id: string
   role: "user" | "assistant"
   content: string
+  // optional diagnostic object when assistant returns a function call's args
+  diagnostic?: Record<string, any> | null
   timestamp: Date
+}
+
+// Minimal, dependency-free markdown-like formatter for bold (**text**) and italic (*text*).
+// It first escapes HTML to prevent XSS, then converts markdown patterns to tags.
+function escapeHtml(unsafe: string) {
+  return unsafe
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;")
+}
+
+function formatSimpleMarkdown(text: string) {
+  if (!text) return ""
+  // escape first
+  let s = escapeHtml(text)
+  // convert **bold** (non-greedy)
+  s = s.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+  // convert *italic* (non-greedy). Avoid matching inside <strong> tags by simple approach.
+  s = s.replace(/\*(.+?)\*/g, "<em>$1</em>")
+  // convert newlines to <br /> for simple formatting
+  s = s.replace(/\r?\n/g, "<br />")
+  return s
 }
 
 const initialMessages: Message[] = [
   {
-    id: 1,
+    id: generateId(),
     role: "assistant",
     content:
       "Hello! I'm your Pera AI assistant. I can help you track your goals, suggest tasks, and provide insights about your life balance. How can I help you today?",
@@ -36,14 +66,24 @@ export function ChatInterface() {
   const [input, setInput] = useState("")
   const [isTyping, setIsTyping] = useState(false)
   const [isRecording, setIsRecording] = useState(false)
+  const containerRef = useRef<HTMLDivElement | null>(null)
+  const idRef = useRef<string | null>(null)
+  const router = useRouter()
+  const { setPlanData } = usePlan()
 
-  const handleSend = () => {
-    if (!input.trim()) return
+  // initialize idRef once
+  useEffect(() => {
+    if (!idRef.current) idRef.current = generateId()
+  }, [])
 
+  const handleSend = async (promptOverride?: string) => {
+    const text = (typeof promptOverride === "string" ? promptOverride : input).trim()
+    if (!text) return
+  let diagnostic: Record<string, any> | null = null
     const userMessage: Message = {
-      id: messages.length + 1,
+      id: idRef.current ?? generateId(),
       role: "user",
-      content: input,
+      content: text,
       timestamp: new Date(),
     }
 
@@ -51,27 +91,105 @@ export function ChatInterface() {
     setInput("")
     setIsTyping(true)
 
-    // Simulate AI response
-    setTimeout(() => {
+    try {
+      // include the current conversation in the request so the server can use chat history
+      const historyForServer = [...messages, userMessage].map((m) => ({ role: m.role, content: m.content }))
+
+      const res = await fetch(`/api/gemini-chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: text, history: historyForServer }),
+      })
+
+      if (!res.ok) {
+        const errText = await res.text()
+        throw new Error(errText || "API error")
+      }
+      
+     
+      
+      const data = await res.json()
+
+      const assistantText = data?.text ?? ""
+
+      let finalContent = assistantText || "Diagnostic is ready for you. Please Confirme!"
+
+      if (data?.functionCalls?.length > 0) {
+        // function call args might be an object or a stringified JSON; normalize to object
+        const rawArgs = data.functionCalls[0].args ?? {}
+        let argsObj: Record<string, any> = {}
+        if (typeof rawArgs === "string") {
+          try {
+            argsObj = JSON.parse(rawArgs)
+          } catch (e) {
+            // fallback: put the raw string under a key
+            argsObj = { value: rawArgs }
+          }
+        } else {
+          argsObj = rawArgs
+        }
+        diagnostic = argsObj
+      }
+
+
+
       const assistantMessage: Message = {
-        id: messages.length + 2,
+        id: generateId(),
         role: "assistant",
-        content:
-          "Based on your recent activity, I recommend focusing on your Social pillar today. You haven't connected with friends in a few days. How about scheduling a call or meeting?",
+        content: finalContent,
+        diagnostic,
+        timestamp: new Date(),
+      }
+
+      setMessages((prev) => [...prev, assistantMessage])
+    } catch (err) {
+      const assistantMessage: Message = {
+        id: generateId(),
+        role: "assistant",
+        content: `Error: ${err instanceof Error ? err.message : String(err)}`,
         timestamp: new Date(),
       }
       setMessages((prev) => [...prev, assistantMessage])
+    } finally {
       setIsTyping(false)
-    }, 1500)
+    }
   }
 
   const handleQuickPrompt = (prompt: string) => {
-    setInput(prompt)
+    handleSend(prompt)
   }
+
+  const handleConfirmDiagnostic = async (diagnostic: Record<string, any>) => {
+    // user confirms the diagnostic; send a short confirmation message to the chat and optionally notify server
+    const confirmText = `I confirm the diagnostic: ${JSON.stringify(diagnostic)}`
+
+
+
+    // Prepare a DiagnosticData-like object for the plan context with empty tasks
+    try {
+      const planObj = {
+        objectif: String(diagnostic.objectif ?? diagnostic.objectif_text ?? diagnostic.goal ?? ""),
+        problem: String(diagnostic.problem ?? diagnostic.issue ?? ""),
+        motivation: String(diagnostic.motivation ?? diagnostic.motivation_text ?? ""),
+        tasks: [] as any[],
+        // ensure we provide the required flag from DiagnosticData
+        isApproved: false,
+      }
+
+      // Approve (set) the plan in context
+      setPlanData(planObj)
+
+      // Navigate to diagnostic page
+      router.push('/diagnostic')
+    } catch (e) {
+      // If anything fails, just ignore and keep UI stable
+      console.error('Failed to set plan from diagnostic', e)
+    }
+  }
+
 
   const toggleRecording = () => {
     setIsRecording(!isRecording)
-    // Simulate recording stop after 3 seconds
     if (!isRecording) {
       setTimeout(() => {
         setIsRecording(false)
@@ -80,10 +198,17 @@ export function ChatInterface() {
     }
   }
 
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    requestAnimationFrame(() => {
+      el.scrollTop = el.scrollHeight
+    })
+  }, [messages.length])
+
   return (
-    <div className="flex flex-col h-full">
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 py-6 space-y-4">
+    <div className="flex flex-col h-full min-h-0">
+      <div ref={containerRef} className="flex-1 overflow-y-auto px-4 py-6 space-y-4">
         {messages.map((message) => (
           <div key={message.id} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
             <Card
@@ -97,7 +222,32 @@ export function ChatInterface() {
                   <span className="text-xs font-medium text-muted-foreground">AI Assistant</span>
                 </div>
               )}
-              <p className="text-sm leading-relaxed">{message.content}</p>
+              <div className="text-sm leading-relaxed">
+                <p dangerouslySetInnerHTML={{ __html: formatSimpleMarkdown(message.content) }} />
+
+                {message.diagnostic && (
+                  <div className="mt-3 border rounded-md p-3 bg-muted/10">
+                    <p className="text-xs font-medium text-muted-foreground mb-2">Diagnostic</p>
+                    <div className="space-y-1 text-sm">
+                      {Object.entries(message.diagnostic).map(([key, val]) => (
+                        <div key={key} className="flex justify-between items-start">
+                          <span className="font-medium text-muted-foreground mr-2">{key}:</span>
+                          <span className="break-words">{String(val)}</span>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="mt-3 flex justify-end">
+                      <Button
+                        size="sm"
+                        onClick={() => message.diagnostic && handleConfirmDiagnostic(message.diagnostic)}
+                      >
+                        Confirm
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
               <p className="text-xs text-muted-foreground mt-2">
                 {message.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
               </p>
@@ -121,7 +271,6 @@ export function ChatInterface() {
         )}
       </div>
 
-      {/* Quick Prompts */}
       {messages.length === 1 && (
         <div className="px-4 pb-4">
           <p className="text-xs text-muted-foreground mb-3">Quick prompts</p>
@@ -140,8 +289,7 @@ export function ChatInterface() {
         </div>
       )}
 
-      {/* Input */}
-      <div className="border-t border-border p-4">
+      <div className="border-t border-border p-4 sticky bottom-0 bg-background/80 backdrop-blur z-10">
         <div className="flex gap-2 max-w-lg mx-auto">
           <Input
             value={input}
@@ -160,7 +308,7 @@ export function ChatInterface() {
             <Mic className="h-4 w-4" />
             <span className="sr-only">{isRecording ? "Stop recording" : "Start voice input"}</span>
           </Button>
-          <Button onClick={handleSend} size="icon" disabled={!input.trim() || isRecording}>
+          <Button onClick={() => handleSend()} size="icon" disabled={!input.trim() || isRecording || isTyping}>
             <Send className="h-4 w-4" />
             <span className="sr-only">Send message</span>
           </Button>
@@ -175,3 +323,4 @@ export function ChatInterface() {
     </div>
   )
 }
+ 

@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { usePlan } from "@/contexts/plan-context"
+import { generateId } from '@/lib/id'
 import { CheckCircle2, Circle, TrendingUp } from "lucide-react"
 import { useRouter } from "next/navigation"
 
@@ -16,16 +17,16 @@ const mockDiagnostic = {
   problem: "Lack of motivation and inconsistent sleep schedule",
   motivation: "Better energy levels and self-discipline",
   tasks: [
-    { id: 1, title: "Morning run", pillar: "Health" as const, duration: "30 min", startDate: "2025-10-18", completed: false },
-    { id: 2, title: "Team standup", pillar: "Career" as const, duration: "15 min", startDate: "2025-10-18", completed: false },
-    { id: 3, title: "Evening yoga", pillar: "Health" as const, duration: "45 min", startDate: "2025-10-19", completed: false },
-    { id: 4, title: "Read book chapter", pillar: "Mind" as const, duration: "30 min", startDate: "2025-10-19", completed: false },
-    { id: 5, title: "Coffee with friend", pillar: "Social" as const, duration: "1 hr", startDate: "2025-10-20", completed: false },
-    { id: 6, title: "Evening prayer", pillar: "Din" as const, duration: "20 min", startDate: "2025-10-20", completed: false },
-    { id: 7, title: "Gym workout", pillar: "Health" as const, duration: "1 hr", startDate: "2025-10-21", completed: false },
-    { id: 8, title: "Project review", pillar: "Career" as const, duration: "45 min", startDate: "2025-10-21", completed: false },
-    { id: 9, title: "Meditation session", pillar: "Mind" as const, duration: "20 min", startDate: "2025-10-22", completed: false },
-    { id: 10, title: "Family dinner", pillar: "Social" as const, duration: "2 hrs", startDate: "2025-10-22", completed: false },
+    { id: "t1", title: "Morning run", pillar: "Health" as const, duration: "30 min", startDate: "2025-10-18", completed: false },
+    { id: "t2", title: "Team standup", pillar: "Career" as const, duration: "15 min", startDate: "2025-10-18", completed: false },
+    { id: "t3", title: "Evening yoga", pillar: "Health" as const, duration: "45 min", startDate: "2025-10-19", completed: false },
+    { id: "t4", title: "Read book chapter", pillar: "Mind" as const, duration: "30 min", startDate: "2025-10-19", completed: false },
+    { id: "t5", title: "Coffee with friend", pillar: "Social" as const, duration: "1 hr", startDate: "2025-10-20", completed: false },
+    { id: "t6", title: "Evening prayer", pillar: "Din" as const, duration: "20 min", startDate: "2025-10-20", completed: false },
+    { id: "t7", title: "Gym workout", pillar: "Health" as const, duration: "1 hr", startDate: "2025-10-21", completed: false },
+    { id: "t8", title: "Project review", pillar: "Career" as const, duration: "45 min", startDate: "2025-10-21", completed: false },
+    { id: "t9", title: "Meditation session", pillar: "Mind" as const, duration: "20 min", startDate: "2025-10-22", completed: false },
+    { id: "t10", title: "Family dinner", pillar: "Social" as const, duration: "2 hrs", startDate: "2025-10-22", completed: false },
   ]
 }
 
@@ -38,17 +39,65 @@ const pillars = [
 ]
 
 export default function DiagnosticPage() {
-  const [diagnostic] = useState(mockDiagnostic)
-  const { plan, approvePlan, getCompletionStats } = usePlan()
+  const { plan, approvePlan, getCompletionStats , addTask } = usePlan()
+  // If a plan exists in context, use it; otherwise fall back to mockDiagnostic
+  
+  const diagnostic = plan ?? mockDiagnostic
   const router = useRouter()
   const stats = getCompletionStats()
+  const [generating, setGenerating] = useState(false)
+
+  const handleGenerate = async () => {
+    try {
+      setGenerating(true)
+
+      const res = await fetch('/api/gemini-tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan: diagnostic }),
+      })
+
+      if (!res.ok) {
+        const txt = await res.text()
+        throw new Error(txt || 'Request failed')
+      }
+
+      const data = await res.json()
+      console.log('gemini-tasks response', data)
+
+      // If the AI returned a tasks array, add them to the plan using context
+      if (data && Array.isArray(data.tasks)) {
+        data.tasks.forEach((t: any) => {
+          try {
+            // normalize minimal fields expected by addTask
+            const task = {
+                id: typeof t.id === 'string' && t.id ? t.id : generateId(),
+              title: t.title,
+              pillar: t.pillar,
+              duration: t.duration,
+              startDate: t.startDate,
+              completed: !!t.completed,
+            }
+            addTask(task)
+          } catch (err) {
+            console.error('Failed to add task to plan:', err)
+          }
+        })
+      }
+    } catch (err) {
+      console.error('Failed to generate tasks:', err)
+    } finally {
+      setGenerating(false)
+    }
+  }
 
   const handleApprove = () => {
-    approvePlan(diagnostic)
+    // ensure diagnostic includes required isApproved property
+    approvePlan({ ...diagnostic, isApproved: true })
     router.push("/calendar")
   }
 
-  const isApproved = plan !== null
+  const isApproved = plan?.isApproved 
 
   return (
     <div className="min-h-screen pb-20">
@@ -77,7 +126,12 @@ export default function DiagnosticPage() {
 
         {/* Tasks Overview */}
         <Card className="p-4">
-          <h2 className="font-semibold text-primary mb-3">Proposed Tasks</h2>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="font-semibold text-primary">Proposed Tasks</h2>
+            <Button onClick={handleGenerate} disabled={generating} className="text-sm px-3 py-1">
+              {generating ? 'Generating...' : 'Generate'}
+            </Button>
+          </div>
           <div className="space-y-2">
             {diagnostic.tasks.map((task) => {
               const pillar = pillars.find(p => p.name === task.pillar)

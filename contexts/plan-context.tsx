@@ -3,7 +3,7 @@
 import { createContext, useContext, useState, ReactNode } from 'react'
 
 interface Task {
-  id: number
+  id: string
   title: string
   pillar: 'Health' | 'Social' | 'Mind' | 'Career' | 'Din'
   duration: string
@@ -16,12 +16,13 @@ interface DiagnosticData {
   problem: string
   motivation: string
   tasks: Task[]
+  isApproved: boolean
 }
 
 interface PlanContextType {
   plan: DiagnosticData | null
   approvePlan: (plan: DiagnosticData) => void
-  toggleTaskCompletion: (taskId: number) => void
+  toggleTaskCompletion: (taskId: string) => void
   getTasksForDate: (date: string) => Task[]
   getCompletionStats: () => {
     total: number
@@ -29,6 +30,8 @@ interface PlanContextType {
     percentage: number
     byPillar: Record<string, { total: number; completed: number }>
   }
+  setPlanData: (data: DiagnosticData) => void
+  addTask: (task: Task) => void
 }
 
 const PlanContext = createContext<PlanContextType | undefined>(undefined)
@@ -37,10 +40,13 @@ export function PlanProvider({ children }: { children: ReactNode }) {
   const [plan, setPlan] = useState<DiagnosticData | null>(null)
 
   const approvePlan = (newPlan: DiagnosticData) => {
-    setPlan(newPlan)
+    setPlan({
+      ...newPlan,
+      isApproved: true
+    })
   }
 
-  const toggleTaskCompletion = (taskId: number) => {
+  const toggleTaskCompletion = (taskId: string) => {
     if (!plan) return
     
     setPlan({
@@ -85,13 +91,33 @@ export function PlanProvider({ children }: { children: ReactNode }) {
     return { total, completed, percentage, byPillar }
   }
 
+  const setPlanData = (data: DiagnosticData) => {
+    setPlan({
+      ...data,
+      isApproved: typeof data.isApproved === "boolean" ? data.isApproved : false
+    })
+  }
+
+  const addTask = (task: Task) => {
+    // Use functional updater to avoid stale `plan` when addTask is called multiple times
+    setPlan((prev) => {
+      if (!prev) return prev
+      return {
+        ...prev,
+        tasks: [...prev.tasks, task]
+      }
+    })
+  }
+
   return (
     <PlanContext.Provider value={{
       plan,
       approvePlan,
       toggleTaskCompletion,
       getTasksForDate,
-      getCompletionStats
+      getCompletionStats,
+      setPlanData,
+      addTask
     }}>
       {children}
     </PlanContext.Provider>
