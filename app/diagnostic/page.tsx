@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { MobileHeader } from "@/components/mobile-header"
 import { BottomNav } from "@/components/bottom-nav"
 import { Card } from "@/components/ui/card"
@@ -46,6 +46,11 @@ export default function DiagnosticPage() {
   const router = useRouter()
   const stats = getCompletionStats()
   const [generating, setGenerating] = useState(false)
+  const [animateButton, setAnimateButton] = useState(false)
+
+  useEffect(() => {
+    setAnimateButton(true)
+  }, [])
 
   const handleGenerate = async () => {
     try {
@@ -128,9 +133,20 @@ export default function DiagnosticPage() {
         <Card className="p-4">
           <div className="flex items-center justify-between mb-3">
             <h2 className="font-semibold text-primary">Proposed Tasks</h2>
-            <Button onClick={handleGenerate} disabled={generating} className="text-sm px-3 py-1">
-              {generating ? 'Generating...' : 'Generate'}
-            </Button>
+            <div className="relative">
+              <Button
+                onClick={handleGenerate}
+                disabled={generating}
+                className={`
+                  text-sm px-3 py-1 transition-all duration-300
+                  ${animateButton ? 'animate-gradient-border' : ''}
+                `}
+              >
+                <span className="relative z-10">
+                  {generating ? 'Generating...' : 'Generate'}
+                </span>
+              </Button>
+            </div>
           </div>
           <div className="space-y-2">
             {diagnostic.tasks.map((task) => {

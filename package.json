@@ -59,6 +59,7 @@
     "input-otp": "1.4.1",
     "livekit-client": "^2.15.11",
     "livekit-server-sdk": "^2.14.0",
+    "lottie-react": "^2.4.1",
     "lucide-react": "^0.454.0",
     "mongoose": "^8.19.1",
     "motion": "^12.23.22",

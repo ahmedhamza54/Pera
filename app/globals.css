@@ -1,6 +1,36 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+@keyframes gradient-border {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.animate-gradient-border {
+  position: relative;
+  overflow: hidden;
+}
+
+.animate-gradient-border::before {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  right: -2px;
+  bottom: -2px;
+  background: linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888, #9a1792, #7c159b, #5f12a4, #4e10ae, #400eb8, #3a0dbf, #330cc5);
+  background-size: 400% 400%;
+  animation: gradient-border 3s ease infinite;
+  z-index: 0;
+  border-radius: 0.5rem; /* Match your button's border-radius */
+}
 @custom-variant dark (&:is(.dark *));
 
 :root {
