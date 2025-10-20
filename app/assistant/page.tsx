@@ -4,10 +4,10 @@ import { ChatInterface } from "@/components/chat-interface"
 
 export default function AssistantPage() {
   return (
-    <div className="min-h-screen pb-20 flex flex-col">
+    <div className="flex flex-col h-[90dvh]">
       <MobileHeader title="AI Assistant" />
 
-      <main className="flex-1 max-w-lg mx-auto w-full">
+      <main className="flex-1 max-w-lg mx-auto w-full overflow-hidden">
         <ChatInterface />
       </main>
 

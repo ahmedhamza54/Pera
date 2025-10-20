@@ -2,12 +2,20 @@
 
 import { useState, useRef, useEffect } from "react"
 import { useRouter } from "next/navigation"
+import { useSession } from "next-auth/react"
 import { usePlan } from "@/contexts/plan-context"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Send, Sparkles, Mic } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import { Room, RoomEvent } from 'livekit-client'
+import { 
+  RoomContext,
+  RoomAudioRenderer,
+  ControlBar,
+} from '@livekit/components-react'
+import '@livekit/components-styles'
 
 import { generateId } from '@/lib/id'
 
@@ -61,6 +69,15 @@ const quickPrompts = [
   "How's my life balance?",
 ]
 
+function MyVideoConference() {
+  return (
+    <div className="hidden">
+      <RoomAudioRenderer />
+      <ControlBar />
+    </div>
+  )
+}
+
 export function ChatInterface() {
   const [messages, setMessages] = useState<Message[]>(initialMessages)
   const [input, setInput] = useState("")
@@ -70,18 +87,122 @@ export function ChatInterface() {
   const idRef = useRef<string | null>(null)
   const router = useRouter()
   const { setPlanData } = usePlan()
+  const [room] = useState(() => new Room({
+    adaptiveStream: true,
+    dynacast: true,
+  }))
+  const { data: session } = useSession()
+  const [token, setToken] = useState('')
+  const roomName = useRef('room-' + Math.random().toString(36).substring(2, 10))
+  const userName = useRef(session?.user?.name || 'user-' + Math.random().toString(36).substring(2, 6))
 
   // initialize idRef once
   useEffect(() => {
     if (!idRef.current) idRef.current = generateId()
   }, [])
 
+  // Handle LiveKit room setup and microphone
+  useEffect(() => {
+    let mounted = true
+    const decoder = new TextDecoder()
+
+    const onDataReceived = (payload: ArrayBuffer | Uint8Array | string, participant: any) => {
+      try {
+        let strData = ''
+        if (typeof payload === 'string') {
+          strData = payload
+        } else if (payload instanceof Uint8Array) {
+          strData = decoder.decode(payload)
+        } else if (payload instanceof ArrayBuffer) {
+          strData = decoder.decode(new Uint8Array(payload))
+        } else {
+          strData = String(payload)
+        }
+
+        // Try to parse the received data as JSON first
+        let parsedDiagnostic: Record<string, any> = {}
+        try {
+          // Attempt to parse as JSON first
+          parsedDiagnostic = JSON.parse(strData)
+        } catch (e) {
+          // If not JSON, create a diagnostic with the raw text
+          parsedDiagnostic = {
+            transcription: strData,
+            type: "voice_input",
+            objectif: strData, // This will be used by handleConfirmDiagnostic
+            problem: "Voice input needs processing",
+            motivation: "Generated from voice input"
+          }
+        }
+
+        // Create a diagnostic-style message from the received data
+        const assistantMessage: Message = {
+          id: generateId(),
+          role: "assistant",
+          content: "I've processed your voice input. Here's what I understood:",
+          diagnostic: parsedDiagnostic,
+          timestamp: new Date(),
+        }
+
+        setMessages(prev => [...prev, assistantMessage])
+        
+      
+      } catch (err) {
+        console.error('Error processing received data', err)
+      }
+    }
+
+    const connectToRoom = async () => {
+      if (!isRecording) {
+        room.disconnect()
+        return
+      }
+
+      try {
+        const resp = await fetch(`/api/get_lk_token?room=${roomName.current}&username=${userName.current}`)
+        const data = await resp.json()
+        if (!mounted) return
+
+        setToken(data.token)
+        if (data.token) {
+          const livekitUrl = process.env.NEXT_PUBLIC_LIVEKIT_URL
+          if (!livekitUrl) throw new Error('NEXT_PUBLIC_LIVEKIT_URL is not defined')
+          
+          await room.connect(livekitUrl, data.token)
+          
+          // Enable microphone by default when joining
+          await room.localParticipant.setMicrophoneEnabled(true)
+
+          // Set up data receiver
+          room.on(RoomEvent.DataReceived, onDataReceived)
+        }
+      } catch (e) {
+        console.error(e)
+        setIsRecording(false)
+      }
+    }
+
+    connectToRoom()
+
+    return () => {
+      mounted = false
+      try {
+        room.off(RoomEvent.DataReceived, onDataReceived)
+      } catch (e) {
+        // ignore if off is not available or listener not attached
+      }
+      if (room.state === 'connected') {
+        room.disconnect()
+      }
+    }
+  }, [isRecording, room])
+
   const handleSend = async (promptOverride?: string) => {
     const text = (typeof promptOverride === "string" ? promptOverride : input).trim()
     if (!text) return
   let diagnostic: Record<string, any> | null = null
     const userMessage: Message = {
-      id: idRef.current ?? generateId(),
+      id: generateId(),
       role: "user",
       content: text,
       timestamp: new Date(),
@@ -190,11 +311,9 @@ export function ChatInterface() {
 
   const toggleRecording = () => {
     setIsRecording(!isRecording)
-    if (!isRecording) {
-      setTimeout(() => {
-        setIsRecording(false)
-        setInput("What should I focus on today?")
-      }, 3000)
+    // When stopping recording, clear input if it was set by voice
+    if (isRecording) {
+      setInput("")
     }
   }
 
@@ -207,8 +326,12 @@ export function ChatInterface() {
   }, [messages.length])
 
   return (
-    <div className="flex flex-col h-full min-h-0">
-      <div ref={containerRef} className="flex-1 overflow-y-auto px-4 py-6 space-y-4">
+    <RoomContext.Provider value={room}>
+      <div className="flex flex-col h-full relative">
+        <div className="absolute top-0 left-0 w-full">
+          <MyVideoConference />
+        </div>
+        <div ref={containerRef} className="flex-1 overflow-y-auto px-4 py-6 space-y-4 scrollbar-none">
         {messages.map((message) => (
           <div key={message.id} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
             <Card
@@ -320,7 +443,8 @@ export function ChatInterface() {
           </div>
         )}
       </div>
-    </div>
+      </div>
+    </RoomContext.Provider>
   )
 }
  
