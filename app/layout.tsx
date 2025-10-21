@@ -8,6 +8,8 @@ import { Providers } from "./providers"
 import { Suspense } from "react"
 import { Analytics } from "@vercel/analytics/react"
 import { PlanProvider } from "@/contexts/plan-context"
+import OfflinePopup from "@/components/OfflinePopup";
+
 
 export const metadata: Metadata = {
   title: "Pera - Personal Discipline Tracker",
@@ -46,6 +48,7 @@ export default function RootLayout({
           <Suspense fallback={null}>
              <PlanProvider>
           {children}
+          <OfflinePopup /> 
         </PlanProvider>
           </Suspense>
         </SessionProvider>
