@@ -1,13 +1,11 @@
 import mongoose from 'mongoose'
-import { generateId } from '@/lib/id'
 
 const taskSchema = new mongoose.Schema({
-  id: { type: String, required: true, default: () => generateId() },
+  // userId stores the application's user id (session.user.id)
   userId: { type: String, required: true },
   title: { type: String, required: true },
   description: { type: String, default: '' },
-  // `completed` is a string mirror of `status` for backward compatibility with UI text
-  completed: { type: String, enum: ['not started', 'in progress', 'finished'], default: 'not started' },
+  
   // status is the canonical machine-friendly value
   status: { type: String, enum: ['not started', 'in progress', 'finished'], default: 'not started' },
   pillar: { type: String, enum: ['Health', 'Social', 'Mind', 'Career', 'Din'], required: true },

@@ -13,8 +13,8 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const rawTasks = await Task.find({ userId: session.user.email }).sort({ createdAt: 1 }).lean()
-    // normalize possible legacy `completed` boolean to `status` string and ensure `id` exists
+    const rawTasks = await Task.find({ userId: session.user.id }).sort({ createdAt: 1 }).lean()
+    // normalize legacy `completed` boolean/string to `status` string for client
     const tasks = rawTasks.map((t: any) => {
       const normalized = { ...t }
       if (normalized.status === undefined) {
@@ -24,8 +24,6 @@ export async function GET() {
           normalized.status = normalized.completed ? 'finished' : 'not started'
         }
       }
-      // ensure an `id` field for client; prefer `id` if present otherwise use _id
-      if (!normalized.id && normalized._id) normalized.id = String(normalized._id)
       return normalized
     })
     return NextResponse.json(tasks)
@@ -40,48 +38,29 @@ export async function POST(request: NextRequest) {
     await connectDB()
     const session = await auth()
 
-    if (!session?.user?.email) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
-    const data = await request.json()
+  const data = await request.json()
   const { title, description = '', pillar, time = '', status } = data
-
-  // compute completed as a string (keep textual values used by UI)
-  let completedStr: string = 'not started'
-  if (typeof data.completed === 'string' && data.completed) {
-    completedStr = data.completed
-  } else if (typeof status === 'string' && status) {
-    completedStr = status
-  } else if (typeof data.completed === 'boolean') {
-    // legacy boolean -> map to string
-    completedStr = data.completed ? 'finished' : 'not started'
-  }
 
     if (!title || !pillar) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
     const task = new Task({
-      userId: session.user.email,
+      userId: session.user.id,
       title,
       description,
       pillar,
       time,
-      completed: completedStr,
-      status: typeof status === 'string' ? status : completedStr,
+      status: typeof status === 'string' ? status : 'not started',
     })
 
     await task.save()
 
     // normalize returned object so client always has `id` and `status`
     const saved = (task as any).toObject ? (task as any).toObject() : task
-    if (!saved.id && saved._id) saved.id = String(saved._id)
-    // normalize when `completed` is stored as string
-    if (saved.status === undefined && typeof saved.completed === 'string') {
-      saved.status = saved.completed
-    }
-
     return NextResponse.json(saved)
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })

@@ -75,7 +75,7 @@ export default function HomePage() {
 
   const toggleTask = (id: string) => {
     // legacy toggle not used; keep for compatibility
-    setTasks((prev) => prev.map((task) => (task.id === id ? { ...task, status: task.status === 'finished' ? 'not started' : 'finished' } : task)))
+    setTasks((prev) => prev.map((task) => (String(task._id) === id ? { ...task, status: task.status === 'finished' ? 'not started' : 'finished' } : task)))
   }
 
   const updateTaskStatus = async (id: string | undefined, status: 'not started' | 'in progress' | 'finished') => {
@@ -88,14 +88,14 @@ export default function HomePage() {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         // send completed as the textual status so DB `completed` (string) matches UI
-        body: JSON.stringify({ status, completed: status }),
+        body: JSON.stringify({ status}),
       })
       if (!res.ok) {
         const err = await res.json()
         throw new Error(err?.error || 'Failed to update')
       }
-      const updated = await res.json()
-      setTasks((prev) => prev.map((t) => (t.id === id || t._id === id ? updated : t)))
+  const updated = await res.json()
+  setTasks((prev) => prev.map((t) => (String(t._id) === id ? updated : t)))
       setMenuOpenTaskId(null)
     } catch (err) {
       console.error('Update status failed', err)
@@ -184,7 +184,7 @@ export default function HomePage() {
             const pillar = pillars.find((p) => p.name === task.pillar)
 
             return (
-              <Card key={task.id ?? task._id ?? `task-${idx}`} className={`p-4 transition-opacity ${task.status === 'finished' ? "opacity-50" : ""}`}>
+              <Card key={String(task._id) ?? `task-${idx}`} className={`p-4 transition-opacity ${task.status === 'finished' ? "opacity-50" : ""}`}>
                 <div className="flex items-start gap-3">
                   <div className={`w-1 h-full rounded-full ${pillar?.color} min-h-[60px]`} />
                   <div className="flex-1 min-w-0">
@@ -201,7 +201,7 @@ export default function HomePage() {
                   </div>
                   <div className="relative">
                     {(() => {
-                      const taskId = task.id ?? task._id
+                      const taskId = String(task._id)
                       return (
                         <>
                           <button

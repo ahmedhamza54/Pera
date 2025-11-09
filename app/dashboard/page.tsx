@@ -1,25 +1,89 @@
+"use client";
+
 import { MobileHeader } from "@/components/mobile-header"
 import { BottomNav } from "@/components/bottom-nav"
 import { Card } from "@/components/ui/card"
 import { LifeBalanceWheel } from "@/components/life-balance-wheel"
 import { TrendingUp, TrendingDown } from "lucide-react"
+import { useEffect, useState } from "react"
 
-const pillarsData = [
-  { name: "Health", score: 75, trend: "up", color: "hsl(var(--chart-1))" },
-  { name: "Social", score: 60, trend: "down", color: "hsl(var(--chart-2))" },
-  { name: "Mind", score: 85, trend: "up", color: "hsl(var(--chart-3))" },
-  { name: "Career", score: 70, trend: "up", color: "hsl(var(--chart-4))" },
-  { name: "Din", score: 65, trend: "up", color: "hsl(var(--chart-5))" },
-]
+interface PillarData {
+  name: string
+  score: number
+  trend: "up" | "down"
+  color: string
+}
 
-const weeklyStats = [
-  { label: "Tasks Completed", value: "42", change: "+12%" },
-  { label: "Avg. Balance", value: "71%", change: "+5%" },
-  { label: "Active Days", value: "6/7", change: "0%" },
-]
+interface WeeklyStat {
+  label: string
+  value: string
+  change: string
+}
+
+interface DashboardData {
+  pillarStats: PillarData[]
+  weeklyStats: WeeklyStat[]
+}
+
+async function fetchDashboardData(): Promise<DashboardData> {
+  const response = await fetch("/api/dashboard")
+  if (!response.ok) {
+    throw new Error("Failed to fetch dashboard data")
+  }
+  return response.json()
+}
 
 export default function DashboardPage() {
-  const overallScore = Math.round(pillarsData.reduce((acc, p) => acc + p.score, 0) / pillarsData.length)
+  const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadDashboardData = async () => {
+      try {
+        const data = await fetchDashboardData();
+        setDashboardData(data);
+      } catch (error) {
+        console.error("Failed to load dashboard data:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadDashboardData();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen pb-20">
+        <MobileHeader title="Dashboard" />
+        <main className="max-w-lg mx-auto px-4 py-6 space-y-6">
+          <Card className="p-6 text-center">
+            <p className="text-sm text-muted-foreground">Loading...</p>
+          </Card>
+        </main>
+        <BottomNav />
+      </div>
+    );
+  }
+
+  if (!dashboardData) {
+    return (
+      <div className="min-h-screen pb-20">
+        <MobileHeader title="Dashboard" />
+        <main className="max-w-lg mx-auto px-4 py-6 space-y-6">
+          <Card className="p-6 text-center">
+            <p className="text-sm text-muted-foreground">Failed to load dashboard data</p>
+          </Card>
+        </main>
+        <BottomNav />
+      </div>
+    );
+  }
+
+  const overallScore = Math.round(
+    dashboardData.pillarStats.reduce((acc: number, p: PillarData) => acc + p.score, 0) / 
+    dashboardData.pillarStats.length
+  );
 
   return (
     <div className="min-h-screen pb-20">
@@ -36,14 +100,14 @@ export default function DashboardPage() {
         {/* Life Balance Wheel */}
         <Card className="p-6">
           <h2 className="text-lg font-semibold mb-4">Life Balance Wheel</h2>
-          <LifeBalanceWheel data={pillarsData} />
+          <LifeBalanceWheel data={dashboardData.pillarStats} />
         </Card>
 
         {/* Pillar Breakdown */}
         <div className="space-y-3">
           <h3 className="text-sm font-medium text-muted-foreground">Pillar Breakdown</h3>
 
-          {pillarsData.map((pillar) => (
+          {dashboardData.pillarStats.map((pillar: PillarData) => (
             <Card key={pillar.name} className="p-4">
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
@@ -74,7 +138,7 @@ export default function DashboardPage() {
           <h3 className="text-sm font-medium text-muted-foreground">This Week</h3>
 
           <div className="grid grid-cols-3 gap-3">
-            {weeklyStats.map((stat) => (
+            {dashboardData.weeklyStats.map((stat: WeeklyStat) => (
               <Card key={stat.label} className="p-4 text-center">
                 <p className="text-xs text-muted-foreground mb-1 text-balance">{stat.label}</p>
                 <p className="text-xl font-bold mb-1">{stat.value}</p>
