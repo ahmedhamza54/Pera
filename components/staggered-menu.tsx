@@ -8,6 +8,7 @@ export interface StaggeredMenuItem {
   label: string;
   ariaLabel: string;
   link: string;
+  onClick?: () => void;
 }
 
 export interface StaggeredMenuSocialItem {
@@ -218,6 +219,7 @@ export const StaggeredMenu: React.FC<StaggeredMenuProps> = ({
         <div className="flex items-center justify-between px-4 py-4 border-b border-border bg-background/95 backdrop-blur">
           <h2 className="text-lg font-semibold">Menu</h2>
           <button
+            type="button"
             onClick={toggleMenu}
             className="inline-flex items-center justify-center h-9 w-9 rounded-full hover:bg-accent transition-colors"
             aria-label="Close menu"
@@ -232,14 +234,31 @@ export const StaggeredMenu: React.FC<StaggeredMenuProps> = ({
             {items && items.length ? (
               items.map((it, idx) => (
                 <li className="relative overflow-hidden" key={it.label + idx}>
-                  <a
-                    className="block text-foreground font-semibold text-[2.5rem] leading-none tracking-tight cursor-pointer transition-colors duration-200 hover:text-primary no-underline"
-                    href={it.link}
-                    aria-label={it.ariaLabel}
-                    onClick={toggleMenu}
-                  >
-                    <span className="sm-panel-itemLabel inline-block">{it.label}</span>
-                  </a>
+                  {it.onClick ? (
+                    <button
+                      className="block text-foreground font-semibold text-[2.5rem] leading-none tracking-tight cursor-pointer transition-colors duration-200 hover:text-primary no-underline text-left w-full"
+                      aria-label={it.ariaLabel}
+                      onClick={() => {
+                        try {
+                          it.onClick?.()
+                        } finally {
+                          toggleMenu()
+                        }
+                      }}
+                      type="button"
+                    >
+                      <span className="sm-panel-itemLabel inline-block">{it.label}</span>
+                    </button>
+                  ) : (
+                    <a
+                      className="block text-foreground font-semibold text-[2.5rem] leading-none tracking-tight cursor-pointer transition-colors duration-200 hover:text-primary no-underline"
+                      href={it.link}
+                      aria-label={it.ariaLabel}
+                      onClick={toggleMenu}
+                    >
+                      <span className="sm-panel-itemLabel inline-block">{it.label}</span>
+                    </a>
+                  )}
                 </li>
               ))
             ) : null}

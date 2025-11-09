@@ -1,6 +1,6 @@
 "use client"
 
-import { createContext, useContext, useState, ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
 
 interface Task {
   id: string
@@ -39,11 +39,39 @@ const PlanContext = createContext<PlanContextType | undefined>(undefined)
 export function PlanProvider({ children }: { children: ReactNode }) {
   const [plan, setPlan] = useState<DiagnosticData | null>(null)
 
-  const approvePlan = (newPlan: DiagnosticData) => {
-    setPlan({
-      ...newPlan,
-      isApproved: true
-    })
+  useEffect(() => {
+    // Fetch diagnostic data on mount
+    const fetchDiagnostic = async () => {
+      try {
+        const response = await fetch('/api/diagnostic');
+        if (response.ok) {
+          const data = await response.json();
+          if (data) {
+            setPlan(data);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch diagnostic:', error);
+      }
+    };
+    fetchDiagnostic();
+  }, []);
+
+  const approvePlan = async (newPlan: DiagnosticData) => {
+    try {
+      const response = await fetch('/api/diagnostic', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isApproved: true })
+      });
+      
+      if (response.ok) {
+        const updatedPlan = await response.json();
+        setPlan(updatedPlan);
+      }
+    } catch (error) {
+      console.error('Failed to approve plan:', error);
+    }
   }
 
   const toggleTaskCompletion = (taskId: string) => {

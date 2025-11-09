@@ -4,12 +4,8 @@ import { Moon, Sun } from "lucide-react"
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { StaggeredMenu } from "@/components/staggered-menu"
-
-const menuItems = [
-  { label: "Profile", ariaLabel: "Go to profile page", link: "/profile" },
-  { label: "About", ariaLabel: "Go to about page", link: "/about" },
-  { label: "Log out", ariaLabel: "Log out", link: "/auth" },
-]
+import { signOut } from "next-auth/react"
+import { useRouter } from "next/navigation"
 
 const socialItems = [
   { label: "Twitter", link: "https://twitter.com/yourhandle" },
@@ -19,6 +15,7 @@ const socialItems = [
 
 export function MobileHeader({ title }: { title: string }) {
   const [theme, setTheme] = useState<"light" | "dark">("light")
+  const router = useRouter()
 
   useEffect(() => {
     const isDark = document.documentElement.classList.contains("dark")
@@ -30,6 +27,22 @@ export function MobileHeader({ title }: { title: string }) {
     setTheme(newTheme)
     document.documentElement.classList.toggle("dark")
   }
+
+  const handleLogout = async () => {
+    try {
+      await signOut({ redirect: false })
+      router.push('/auth')
+    } catch (err) {
+      console.error('Logout failed', err)
+      router.push('/auth')
+    }
+  }
+
+  const menuItems = [
+    { label: "Profile", ariaLabel: "Go to profile page", link: "/profile" },
+    { label: "About", ariaLabel: "Go to about page", link: "/about" },
+    { label: "Log out", ariaLabel: "Log out", link: "/auth", onClick: handleLogout },
+  ]
 
   return (
     <header className="sticky top-0 z-40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-border">

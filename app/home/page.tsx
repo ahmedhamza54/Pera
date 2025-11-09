@@ -14,8 +14,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { requestNotificationPermission } from "@/lib/notifications"
-import { generateId } from '@/lib/id'
-import { Checkbox } from "@/components/ui/checkbox"
+import { MoreVertical } from 'lucide-react'
 
 const pillars = [
   { name: "Health", color: "bg-chart-1" },
@@ -25,13 +24,7 @@ const pillars = [
   { name: "Din", color: "bg-chart-5" },
 ]
 
-const initialTasks = [
-  { id: generateId(), title: "Morning workout", pillar: "Health", time: "7:00 AM", completed: false },
-  { id: generateId(), title: "Team standup meeting", pillar: "Career", time: "9:30 AM", completed: false },
-  { id: generateId(), title: "Read 30 pages", pillar: "Mind", time: "2:00 PM", completed: false },
-  { id: generateId(), title: "Call mom", pillar: "Social", time: "6:00 PM", completed: false },
-  { id: generateId(), title: "Evening prayer", pillar: "Din", time: "8:00 PM", completed: false },
-]
+const initialTasks = [] as any[]
 
 export default function HomePage() {
   const { data: session, status } = useSession()
@@ -46,10 +39,30 @@ export default function HomePage() {
   }, [status, router])
 
   const [tasks, setTasks] = useState(initialTasks)
+  const [menuOpenTaskId, setMenuOpenTaskId] = useState<string | null>(null)
   const [isAddTaskOpen, setIsAddTaskOpen] = useState(false)
   const [newTaskTitle, setNewTaskTitle] = useState("")
+  const [newTaskDescription, setNewTaskDescription] = useState("")
   const [newTaskPillar, setNewTaskPillar] = useState("")
   const [newTaskTime, setNewTaskTime] = useState("")
+
+  // load tasks from database for current user
+  useEffect(() => {
+    const fetchTasks = async () => {
+      try {
+        const res = await fetch('/api/tasks')
+        if (res.ok) {
+          const data = await res.json()
+          // ensure tasks array shape expected by the UI
+          setTasks(Array.isArray(data) ? data : [])
+        }
+      } catch (err) {
+        console.error('Failed to fetch tasks:', err)
+      }
+    }
+
+    fetchTasks()
+  }, [])
 
   useEffect(() => {
     // Request notification permission
@@ -61,27 +74,70 @@ export default function HomePage() {
   }, [])
 
   const toggleTask = (id: string) => {
-    setTasks((prev) => prev.map((task) => (task.id === id ? { ...task, completed: !task.completed } : task)))
+    // legacy toggle not used; keep for compatibility
+    setTasks((prev) => prev.map((task) => (task.id === id ? { ...task, status: task.status === 'finished' ? 'not started' : 'finished' } : task)))
   }
 
-  const handleAddTask = () => {
-    if (newTaskTitle && newTaskPillar && newTaskTime) {
-      const newTask = {
-        id: generateId(),
-        title: newTaskTitle,
-        pillar: newTaskPillar,
-        time: newTaskTime,
-        completed: false,
+  const updateTaskStatus = async (id: string | undefined, status: 'not started' | 'in progress' | 'finished') => {
+    try {
+      if (!id) {
+        console.error('updateTaskStatus called without an id')
+        return
       }
-      setTasks([...tasks, newTask])
-      setIsAddTaskOpen(false)
-      setNewTaskTitle("")
-      setNewTaskPillar("")
-      setNewTaskTime("")
+      const res = await fetch(`/api/tasks/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        // send completed as the textual status so DB `completed` (string) matches UI
+        body: JSON.stringify({ status, completed: status }),
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err?.error || 'Failed to update')
+      }
+      const updated = await res.json()
+      setTasks((prev) => prev.map((t) => (t.id === id || t._id === id ? updated : t)))
+      setMenuOpenTaskId(null)
+    } catch (err) {
+      console.error('Update status failed', err)
     }
   }
 
-  const completedCount = tasks.filter((t) => t.completed).length
+  const handleAddTask = async () => {
+    if (!newTaskTitle || !newTaskPillar) return
+
+    try {
+      const res = await fetch('/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: newTaskTitle,
+          description: newTaskDescription,
+          pillar: newTaskPillar,
+          time: newTaskTime,
+        }),
+      })
+
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err?.error || 'Failed to create task')
+      }
+
+      const created = await res.json()
+      // append the created task to local state
+      setTasks((prev) => [...prev, created])
+
+      // reset dialog
+      setIsAddTaskOpen(false)
+      setNewTaskTitle("")
+      setNewTaskDescription("")
+      setNewTaskPillar("")
+      setNewTaskTime("")
+    } catch (err) {
+      console.error('Create task failed', err)
+    }
+  }
+
+  const completedCount = tasks.filter((t) => t.status === 'finished').length
 
   // Optionally, show a loading state while checking session
   if (status === "loading") {
@@ -124,11 +180,11 @@ export default function HomePage() {
         <div className="space-y-3">
           <h3 className="text-sm font-medium text-muted-foreground">Today's Tasks</h3>
 
-          {tasks.map((task) => {
+          {tasks.map((task, idx) => {
             const pillar = pillars.find((p) => p.name === task.pillar)
 
             return (
-              <Card key={task.id} className={`p-4 transition-opacity ${task.completed ? "opacity-50" : ""}`}>
+              <Card key={task.id ?? task._id ?? `task-${idx}`} className={`p-4 transition-opacity ${task.status === 'finished' ? "opacity-50" : ""}`}>
                 <div className="flex items-start gap-3">
                   <div className={`w-1 h-full rounded-full ${pillar?.color} min-h-[60px]`} />
                   <div className="flex-1 min-w-0">
@@ -137,17 +193,40 @@ export default function HomePage() {
                         {task.pillar}
                       </Badge>
                       <span className="text-xs text-muted-foreground">{task.time}</span>
+                      <span className="ml-2 text-xs px-2 py-0.5 rounded-md bg-secondary text-muted-foreground">{task.status}</span>
                     </div>
-                    <p className={`text-sm ${task.completed ? "line-through text-muted-foreground" : ""}`}>
+                    <p className={`text-sm ${task.status === 'finished' ? "line-through text-muted-foreground" : ""}`}>
                       {task.title}
                     </p>
                   </div>
-                                  <Checkbox
-                                    id={`task-${task.id}`}
-                                    checked={task.completed}
-                                    onCheckedChange={() => toggleTask(task.id)}
-                                    className="mt-1"
-                                  />
+                  <div className="relative">
+                    {(() => {
+                      const taskId = task.id ?? task._id
+                      return (
+                        <>
+                          <button
+                            type="button"
+                            aria-label="Task actions"
+                            onClick={() => {
+                              if (!taskId) return
+                              setMenuOpenTaskId(menuOpenTaskId === taskId ? null : taskId)
+                            }}
+                            className="p-2 rounded-full hover:bg-secondary"
+                          >
+                            <MoreVertical className="h-5 w-5" />
+                          </button>
+
+                          {menuOpenTaskId === taskId && (
+                            <div className="absolute right-0 mt-2 w-44 bg-card border border-border rounded-md shadow-md z-50">
+                              <button type="button" className="block w-full text-left px-3 py-2 text-sm hover:bg-secondary" onClick={() => updateTaskStatus(taskId, 'finished')}>Finish task</button>
+                              <button type="button" className="block w-full text-left px-3 py-2 text-sm hover:bg-secondary" onClick={() => updateTaskStatus(taskId, 'in progress')}>In progress</button>
+                              <button type="button" className="block w-full text-left px-3 py-2 text-sm hover:bg-secondary" onClick={() => updateTaskStatus(taskId, 'not started')}>Not started</button>
+                            </div>
+                          )}
+                        </>
+                      )
+                    })()}
+                  </div>
                 </div>
               </Card>
             )
@@ -188,6 +267,16 @@ export default function HomePage() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="task-description">Description (optional)</Label>
+              <Input
+                id="task-description"
+                placeholder="Add a short description"
+                value={newTaskDescription}
+                onChange={(e) => setNewTaskDescription(e.target.value)}
+              />
             </div>
 
             <div className="space-y-2">

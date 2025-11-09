@@ -56,6 +56,7 @@ export default function DiagnosticPage() {
     try {
       setGenerating(true)
 
+      // First, get the AI-generated tasks
       const res = await fetch('/api/gemini-tasks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -70,27 +71,42 @@ export default function DiagnosticPage() {
       const data = await res.json()
       console.log('gemini-tasks response', data)
 
-      // If the AI returned a tasks array, add them to the plan using context
-      if (data && Array.isArray(data.tasks)) {
-        data.tasks.forEach((t: any) => {
-          try {
-            // normalize minimal fields expected by addTask
-            const task = {
-                id: typeof t.id === 'string' && t.id ? t.id : generateId(),
-              title: t.title,
-              pillar: t.pillar,
-              duration: t.duration,
-              startDate: t.startDate,
-              completed: !!t.completed,
-            }
-            addTask(task)
-          } catch (err) {
-            console.error('Failed to add task to plan:', err)
-          }
-        })
+      // Normalize tasks from AI response
+      const normalizedTasks = data && Array.isArray(data.tasks) 
+        ? data.tasks.map((t: any) => ({
+            id: typeof t.id === 'string' && t.id ? t.id : generateId(),
+            title: t.title,
+            pillar: t.pillar,
+            duration: t.duration,
+            startDate: t.startDate,
+            completed: !!t.completed,
+          }))
+        : []
+
+      // Save to database
+      const diagnosticRes = await fetch('/api/diagnostic', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          objectif: diagnostic.objectif,
+          problem: diagnostic.problem,
+          motivation: diagnostic.motivation,
+          tasks: normalizedTasks
+        }),
+      })
+
+      if (!diagnosticRes.ok) {
+        throw new Error('Failed to save diagnostic')
       }
+
+      const savedDiagnostic = await diagnosticRes.json()
+      // Update local state through context
+      savedDiagnostic.tasks.forEach((task: any) => {
+        addTask(task)
+      })
+
     } catch (err) {
-      console.error('Failed to generate tasks:', err)
+      console.error('Failed to generate and save tasks:', err)
     } finally {
       setGenerating(false)
     }
@@ -135,6 +151,7 @@ export default function DiagnosticPage() {
             <h2 className="font-semibold text-primary">Proposed Tasks</h2>
             <div className="relative">
               <Button
+
                 onClick={handleGenerate}
                 disabled={generating}
                 className={`

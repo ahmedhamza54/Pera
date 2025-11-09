@@ -2,9 +2,14 @@
 import { useEffect, useState } from "react";
 
 export default function OfflinePopup() {
-  const [isOffline, setIsOffline] = useState(!navigator.onLine);
+  // Start with a stable default so server and client HTML match.
+  // We detect real online status on mount.
+  const [isOffline, setIsOffline] = useState(false);
 
   useEffect(() => {
+    // initialize based on actual browser status
+    setIsOffline(!navigator.onLine);
+
     const handleOnline = () => setIsOffline(false);
     const handleOffline = () => setIsOffline(true);
 
