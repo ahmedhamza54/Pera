@@ -1,3 +1,6 @@
+// Import URL polyfill to fix URL.canParse error
+import "@/lib/utils/url-polyfill";
+
 import { NextResponse, NextRequest } from "next/server"
 import { getToken } from "next-auth/jwt"
 

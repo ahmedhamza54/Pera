@@ -1,3 +1,6 @@
+// Import URL polyfill to fix URL.canParse error
+import "@/lib/utils/url-polyfill";
+
 import type React from "react"
 import type { Metadata } from "next"
 import { GeistSans } from "geist/font/sans"
