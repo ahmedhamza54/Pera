@@ -3,6 +3,8 @@
 import React, { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import { gsap } from 'gsap';
 import { X } from 'lucide-react';
+//import useffect
+import { useEffect } from 'react';
 
 export interface StaggeredMenuItem {
   label: string;
@@ -43,6 +45,36 @@ export const StaggeredMenu: React.FC<StaggeredMenuProps> = ({
   const iconRef = useRef<HTMLSpanElement | null>(null);
   const toggleBtnRef = useRef<HTMLButtonElement | null>(null);
   const busyRef = useRef(false);
+
+  useEffect(() => {
+  if (!open) return;
+
+  function handleClickOutside(event: MouseEvent) {
+    // If overlay or panel exist
+    const panel = panelRef.current;
+    const overlay = overlayRef.current;
+    // Check that click is outside panel and toggle button
+    if (
+      panel &&
+      !panel.contains(event.target as Node) &&
+      toggleBtnRef.current &&
+      !toggleBtnRef.current.contains(event.target as Node)
+    ) {
+      setOpen(false);
+      openRef.current = false;
+      onMenuClose?.();
+      playClose();
+      animateIcon(false);
+    }
+  }
+
+  document.addEventListener("mousedown", handleClickOutside);
+
+  return () => {
+    document.removeEventListener("mousedown", handleClickOutside);
+  };
+}, [open, onMenuClose]);
+
 
   useLayoutEffect(() => {
     const ctx = gsap.context(() => {

@@ -7,14 +7,13 @@ import { MobileHeader } from "@/components/mobile-header"
 import { BottomNav } from "@/components/bottom-nav"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Plus } from "lucide-react"
+import { Plus, MoreVertical } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { requestNotificationPermission } from "@/lib/notifications"
-import { MoreVertical } from 'lucide-react'
 
 const pillars = [
   { name: "Health", color: "bg-chart-1" },
@@ -24,7 +23,24 @@ const pillars = [
   { name: "Din", color: "bg-chart-5" },
 ]
 
-const initialTasks = [] as any[]
+// --- OFFLINE UTILS ---
+const LOCAL_TASKS_KEY = 'offline_tasks';
+
+function saveTasksToCache(tasks: any[]) {
+  try {
+    localStorage.setItem(LOCAL_TASKS_KEY, JSON.stringify(tasks))
+  } catch {}
+}
+
+function getTasksFromCache() {
+  try {
+    const raw = localStorage.getItem(LOCAL_TASKS_KEY);
+    if (!raw) return [];
+    return JSON.parse(raw);
+  } catch {
+    return [];
+  }
+}
 
 export default function HomePage() {
   const { data: session, status } = useSession()
@@ -34,11 +50,10 @@ export default function HomePage() {
     if (status === "unauthenticated") {
       router.replace("/auth")
     }
-      requestNotificationPermission();
-
+    requestNotificationPermission()
   }, [status, router])
 
-  const [tasks, setTasks] = useState(initialTasks)
+  const [tasks, setTasks] = useState<any[]>([])
   const [menuOpenTaskId, setMenuOpenTaskId] = useState<string | null>(null)
   const [isAddTaskOpen, setIsAddTaskOpen] = useState(false)
   const [newTaskTitle, setNewTaskTitle] = useState("")
@@ -46,22 +61,23 @@ export default function HomePage() {
   const [newTaskPillar, setNewTaskPillar] = useState("")
   const [newTaskTime, setNewTaskTime] = useState("")
 
-  // load tasks from database for current user
+  // --- FETCH & CACHE ---
   useEffect(() => {
     const fetchTasks = async () => {
       try {
-        const res = await fetch('/api/tasks')
+        const res = await fetch('/api/tasks');
         if (res.ok) {
-          const data = await res.json()
-          // ensure tasks array shape expected by the UI
+          const data = await res.json();
           setTasks(Array.isArray(data) ? data : [])
+          saveTasksToCache(data) // Save to offline cache
+        } else {
+          setTasks(getTasksFromCache()) // Fallback on fetch error
         }
       } catch (err) {
-        console.error('Failed to fetch tasks:', err)
+        setTasks(getTasksFromCache()) // Fallback on network error
       }
     }
-
-    fetchTasks()
+    fetchTasks();
   }, [])
 
   useEffect(() => {
@@ -73,38 +89,30 @@ export default function HomePage() {
     }
   }, [])
 
-  const toggleTask = (id: string) => {
-    // legacy toggle not used; keep for compatibility
-    setTasks((prev) => prev.map((task) => (String(task._id) === id ? { ...task, status: task.status === 'finished' ? 'not started' : 'finished' } : task)))
-  }
-
   const updateTaskStatus = async (id: string | undefined, status: 'not started' | 'in progress' | 'finished') => {
     try {
-      if (!id) {
-        console.error('updateTaskStatus called without an id')
-        return
-      }
+      if (!id) return
       const res = await fetch(`/api/tasks/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        // send completed as the textual status so DB `completed` (string) matches UI
-        body: JSON.stringify({ status}),
+        body: JSON.stringify({ status }),
       })
-      if (!res.ok) {
-        const err = await res.json()
-        throw new Error(err?.error || 'Failed to update')
-      }
-  const updated = await res.json()
-  setTasks((prev) => prev.map((t) => (String(t._id) === id ? updated : t)))
+      if (!res.ok) throw new Error('Failed to update')
+      const updated = await res.json()
+      setTasks(prev => {
+        const next = prev.map((t) => (String(t._id) === id ? updated : t))
+        saveTasksToCache(next)
+        return next
+      })
       setMenuOpenTaskId(null)
     } catch (err) {
+      // Optionally inform user
       console.error('Update status failed', err)
     }
   }
 
   const handleAddTask = async () => {
     if (!newTaskTitle || !newTaskPillar) return
-
     try {
       const res = await fetch('/api/tasks', {
         method: 'POST',
@@ -117,16 +125,14 @@ export default function HomePage() {
         }),
       })
 
-      if (!res.ok) {
-        const err = await res.json()
-        throw new Error(err?.error || 'Failed to create task')
-      }
-
+      if (!res.ok) throw new Error('Failed to create task')
       const created = await res.json()
-      // append the created task to local state
-      setTasks((prev) => [...prev, created])
+      setTasks(prev => {
+        const next = [...prev, created]
+        saveTasksToCache(next)
+        return next
+      })
 
-      // reset dialog
       setIsAddTaskOpen(false)
       setNewTaskTitle("")
       setNewTaskDescription("")
@@ -139,7 +145,6 @@ export default function HomePage() {
 
   const completedCount = tasks.filter((t) => t.status === 'finished').length
 
-  // Optionally, show a loading state while checking session
   if (status === "loading") {
     return <div className="min-h-screen flex items-center justify-center">Loading...</div>
   }

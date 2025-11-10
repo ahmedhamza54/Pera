@@ -10,6 +10,10 @@ import { usePlan } from "@/contexts/plan-context"
 import { generateId } from '@/lib/id'
 import { CheckCircle2, Circle, TrendingUp } from "lucide-react"
 import { useRouter } from "next/navigation"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 // Mock AI agent output - this will be replaced by actual AI output
 const mockDiagnostic = {
@@ -47,6 +51,12 @@ export default function DiagnosticPage() {
   const stats = getCompletionStats()
   const [generating, setGenerating] = useState(false)
   const [animateButton, setAnimateButton] = useState(false)
+  const [isEditTaskOpen, setIsEditTaskOpen] = useState(false)
+  const [editingTask, setEditingTask] = useState<any>(null)
+  const [editTaskTitle, setEditTaskTitle] = useState("")
+  const [editTaskDescription, setEditTaskDescription] = useState("")
+  const [editTaskPillar, setEditTaskPillar] = useState("")
+  const [editTaskTime, setEditTaskTime] = useState("")
 
   useEffect(() => {
     setAnimateButton(true)
@@ -118,6 +128,50 @@ export default function DiagnosticPage() {
     router.push("/calendar")
   }
 
+  const handleTaskClick = (task: any) => {
+    setEditingTask(task)
+    setEditTaskTitle(task.title)
+    setEditTaskDescription(task.description || "")
+    setEditTaskPillar(task.pillar)
+    setEditTaskTime(task.time || "")
+    setIsEditTaskOpen(true)
+  }
+
+  const handleEditTask = async () => {
+    if (!editTaskTitle || !editTaskPillar || !editingTask) return
+
+    try {
+      const res = await fetch('/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: editTaskTitle,
+          description: editTaskDescription,
+          pillar: editTaskPillar,
+          time: editTaskTime,
+        }),
+      })
+
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err?.error || 'Failed to create task')
+      }
+
+      const created = await res.json()
+      addTask(created)
+
+      // Close dialog and reset
+      setIsEditTaskOpen(false)
+      setEditingTask(null)
+      setEditTaskTitle("")
+      setEditTaskDescription("")
+      setEditTaskPillar("")
+      setEditTaskTime("")
+    } catch (err) {
+      console.error('Create task failed', err)
+    }
+  }
+
   const isApproved = plan?.isApproved 
 
   return (
@@ -169,7 +223,11 @@ export default function DiagnosticPage() {
             {diagnostic.tasks.map((task) => {
               const pillar = pillars.find(p => p.name === task.pillar)
               return (
-                <div key={task.id} className="flex items-center gap-3 p-2 rounded-lg bg-secondary/50">
+                <div 
+                  key={task.id} 
+                  className="flex items-center gap-3 p-2 rounded-lg bg-secondary/50 cursor-pointer hover:bg-secondary/70 transition-colors"
+                  onClick={() => handleTaskClick(task)}
+                >
                   <div className={`w-1 h-12 rounded-full ${pillar?.color}`} />
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-sm">{task.title}</p>
@@ -274,6 +332,68 @@ export default function DiagnosticPage() {
           </>
         )}
       </main>
+
+      <Dialog open={isEditTaskOpen} onOpenChange={setIsEditTaskOpen}>
+        <DialogContent className="max-w-[90%] rounded-lg">
+          <DialogHeader>
+            <DialogTitle>Edit Task</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-task-title">Task Name</Label>
+              <Input
+                id="edit-task-title"
+                placeholder="Enter task name"
+                value={editTaskTitle}
+                onChange={(e) => setEditTaskTitle(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-task-pillar">Pillar Type</Label>
+              <Select value={editTaskPillar} onValueChange={setEditTaskPillar}>
+                <SelectTrigger id="edit-task-pillar">
+                  <SelectValue placeholder="Select a pillar" />
+                </SelectTrigger>
+                <SelectContent>
+                  {pillars.map((pillar) => (
+                    <SelectItem key={pillar.name} value={pillar.name}>
+                      <div className="flex items-center gap-2">
+                        <div className={`w-3 h-3 rounded-full ${pillar.color}`} />
+                        {pillar.name}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-task-description">Description (optional)</Label>
+              <Input
+                id="edit-task-description"
+                placeholder="Add a short description"
+                value={editTaskDescription}
+                onChange={(e) => setEditTaskDescription(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-task-time">Time</Label>
+              <Input id="edit-task-time" type="time" value={editTaskTime} onChange={(e) => setEditTaskTime(e.target.value)} />
+            </div>
+
+            <div className="flex gap-2 pt-4">
+              <Button variant="outline" className="flex-1 bg-transparent" onClick={() => setIsEditTaskOpen(false)}>
+                Cancel
+              </Button>
+              <Button className="flex-1" onClick={handleEditTask}>
+                Add Task
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <BottomNav />
     </div>
